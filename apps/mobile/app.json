@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Naal",
+    "slug": "naal-planner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/logo.png",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#EEF0F4"
+    },
+    "android": {
+      "package": "com.dinesh.naal",
+      "edgeToEdgeEnabled": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#EEF0F4"
+      }
+    }
+  }
+}
