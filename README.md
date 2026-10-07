@@ -1,4 +1,4 @@
-# Naal — day planner (Android app + web app)
+# Naal Planner — day planner (Android app + web app)
 
 Oru visual timeline day planner. Android app (React Native / Expo) and web app (Next.js)
 rendum same Firebase account use pannum — phone-la add panna task computer-la udane varum.
