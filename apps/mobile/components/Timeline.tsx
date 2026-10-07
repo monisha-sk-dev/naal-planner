@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { buildTimeline, fmtDur, fmtTime, type Task } from "@naal/shared";
+import { buildTimeline, fmtDur, fmtTime, parseNotes, toggleNoteCheck, type Task } from "@naal/shared";
 import { tint, useTheme } from "../lib/theme";
 
 const pillHeight = (dur: number) => Math.max(56, Math.min(170, dur * 1.1));
@@ -11,6 +11,7 @@ export default function Timeline({
   onOpen,
   onToggle,
   onAddAt,
+  onNotes,
 }: {
   tasks: Task[];
   date: string;
@@ -18,6 +19,7 @@ export default function Timeline({
   onOpen: (t: Task) => void;
   onToggle: (t: Task) => void;
   onAddAt: (start: number) => void;
+  onNotes: (t: Task, notes: string) => void;
 }) {
   const c = useTheme();
   const items = buildTimeline(tasks, date, nowMin);
@@ -105,11 +107,32 @@ export default function Timeline({
               >
                 {task.title || "Untitled"}
               </Text>
-              {!!task.notes && (
-                <Text numberOfLines={2} style={{ color: c.muted, fontSize: 13 }}>
-                  {task.notes}
-                </Text>
-              )}
+              {parseNotes(task.notes).map((l, li) => (
+                <View key={li} style={s.noteLine}>
+                  {l.kind === "check" && (
+                    <Pressable
+                      onPress={() => onNotes(task, toggleNoteCheck(task.notes, li))}
+                      hitSlop={8}
+                      style={[s.noteBox, { borderColor: c.muted }, l.checked && { backgroundColor: c.ink, borderColor: c.ink }]}
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: l.checked }}
+                      accessibilityLabel={l.text}
+                    >
+                      {l.checked && <Text style={{ color: c.bg, fontSize: 11, fontWeight: "900" }}>✓</Text>}
+                    </Pressable>
+                  )}
+                  {l.kind === "point" && <Text style={{ color: c.muted, width: 18, textAlign: "center" }}>•</Text>}
+                  <Text
+                    style={[
+                      { color: c.muted, fontSize: 13, flexShrink: 1 },
+                      l.checked && { textDecorationLine: "line-through", opacity: 0.7 },
+                      l.highlight && { backgroundColor: "#FFE98A", color: "#1B2230" },
+                    ]}
+                  >
+                    {l.text}
+                  </Text>
+                </View>
+              ))}
             </Pressable>
             <Pressable
               onPress={() => onToggle(task)}
@@ -143,6 +166,8 @@ const s = StyleSheet.create({
   body: { flex: 1, justifyContent: "center", paddingHorizontal: 8, gap: 2 },
   title: { fontSize: 16, fontWeight: "700" },
   check: { alignSelf: "center", width: 30, height: 30, borderRadius: 15, borderWidth: 2, alignItems: "center", justifyContent: "center", marginLeft: 6 },
+  noteLine: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
+  noteBox: { width: 18, height: 18, borderRadius: 5, borderWidth: 2, alignItems: "center", justifyContent: "center", marginTop: 1 },
   tick: { color: "#fff", fontWeight: "900" },
   gap: { flex: 1, justifyContent: "center", paddingHorizontal: 8 },
   nowDot: { width: 12, height: 12, borderRadius: 6 },

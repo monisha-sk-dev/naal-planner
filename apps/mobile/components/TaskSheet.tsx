@@ -4,15 +4,21 @@ import DateTimePicker, { type DateTimePickerEvent } from "@react-native-communit
 import {
   addDays,
   COLORS,
+  MAX_CATEGORIES,
   dayTitle,
   DURATIONS,
-  EMOJIS,
+  EMOJI_GROUPS,
   fmtDur,
   fmtTime,
+  parseNotes,
   parseYmd,
   REPEAT_LABELS,
+  serializeNotes,
   todayStr,
   ymd,
+  type Category,
+  type NoteKind,
+  type NoteLine,
   type Repeat,
   type Task,
 } from "@naal/shared";
@@ -21,19 +27,65 @@ import { tint, useTheme } from "../lib/theme";
 type Props = {
   task: Task;
   isNew: boolean;
+  cats: {
+    categories: Category[];
+    add: (name: string, color: string) => Category;
+    update: (id: string, patch: Partial<Omit<Category, "id">>) => void;
+    remove: (id: string) => void;
+  };
   onSave: (t: Task) => void;
   onDelete: (t: Task) => void;
   onSkipDay: (t: Task) => void;
   onClose: () => void;
 };
 
-export default function TaskSheet({ task, isNew, onSave, onDelete, onSkipDay, onClose }: Props) {
+export default function TaskSheet({ task, isNew, cats, onSave, onDelete, onSkipDay, onClose }: Props) {
   const c = useTheme();
   const [t, setT] = useState<Task>(task);
   const [showEmoji, setShowEmoji] = useState(false);
   const [picker, setPicker] = useState<"date" | "time" | null>(null);
   const set = (p: Partial<Task>) => setT((prev) => ({ ...prev, ...p }));
   const today = todayStr();
+  // null = closed; id null = creating a new category
+  const [catForm, setCatForm] = useState<{ id: string | null; name: string; color: string } | null>(null);
+  const current = cats.categories.find((k) => k.id === t.categoryId);
+
+  const pickCategory = (k: Category) => {
+    setCatForm(null);
+    set({ categoryId: k.id, color: k.color });
+  };
+  const saveCategory = () => {
+    if (!catForm || !catForm.name.trim()) return;
+    if (catForm.id === null) {
+      const k = cats.add(catForm.name, catForm.color);
+      set({ categoryId: k.id, color: k.color });
+    } else {
+      cats.update(catForm.id, { name: catForm.name.trim(), color: catForm.color });
+      if (t.categoryId === catForm.id) set({ color: catForm.color });
+    }
+    setCatForm(null);
+  };
+  const deleteCategory = () => {
+    const id = catForm?.id;
+    if (!id) return;
+    Alert.alert("Delete category?", "Its tasks become Uncategorised.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          cats.remove(id);
+          if (t.categoryId === id) set({ categoryId: null });
+          setCatForm(null);
+        },
+      },
+    ]);
+  };
+
+  const noteLines = parseNotes(t.notes);
+  const setLines = (lines: NoteLine[]) => set({ notes: serializeNotes(lines) });
+  const patchLine = (i: number, p: Partial<NoteLine>) => setLines(noteLines.map((l, j) => (j === i ? { ...l, ...p } : l)));
+  const addLine = (kind: NoteKind) => setLines([...noteLines, { kind, checked: false, highlight: false, text: "" }]);
 
   const Chip = ({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) => (
     <Pressable
@@ -101,19 +153,72 @@ export default function TaskSheet({ task, isNew, onSave, onDelete, onSkipDay, on
           </View>
 
           {showEmoji && (
-            <View style={s.emojiGrid}>
-              {EMOJIS.map((em) => (
-                <Pressable
-                  key={em}
-                  style={[s.emojiCell, em === t.emoji && { backgroundColor: c.bg }]}
-                  onPress={() => {
-                    set({ emoji: em });
-                    setShowEmoji(false);
-                  }}
-                >
-                  <Text style={{ fontSize: 24 }}>{em}</Text>
-                </Pressable>
+            <View>
+              {EMOJI_GROUPS.map((g) => (
+                <View key={g.name}>
+                  <Text style={s.emojiGroupLabel}>{g.name.toUpperCase()}</Text>
+                  <View style={s.emojiGrid}>
+                    {g.emojis.map((em) => (
+                      <Pressable
+                        key={em}
+                        style={[s.emojiCell, em === t.emoji && { backgroundColor: c.bg }]}
+                        onPress={() => {
+                          set({ emoji: em });
+                          setShowEmoji(false);
+                        }}
+                      >
+                        <Text style={{ fontSize: 24 }}>{em}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
               ))}
+            </View>
+          )}
+
+          {label("Category")}
+          <View style={s.wrap}>
+            {cats.categories.map((k) => (
+              <Chip key={k.id} label={k.name} on={k.id === t.categoryId} onPress={() => pickCategory(k)} />
+            ))}
+            {current && (
+              <Chip label="✎ Edit" on={false} onPress={() => setCatForm({ id: current.id, name: current.name, color: current.color })} />
+            )}
+            {cats.categories.length < MAX_CATEGORIES && (
+              <Chip
+                label="＋ New"
+                on={false}
+                onPress={() =>
+                  setCatForm({ id: null, name: "", color: COLORS.find((x) => !cats.categories.some((k) => k.color === x.hex))?.hex ?? COLORS[0].hex })
+                }
+              />
+            )}
+          </View>
+          {catForm && (
+            <View style={[s.catForm, { borderColor: c.line }]}>
+              <TextInput
+                autoFocus
+                placeholder="Category name (e.g. Extra)"
+                placeholderTextColor={c.muted}
+                value={catForm.name}
+                onChangeText={(name) => setCatForm({ ...catForm, name })}
+                style={{ color: c.ink, borderColor: c.line, borderWidth: 1, borderRadius: 10, padding: 10 }}
+              />
+              <View style={s.row}>
+                {COLORS.map((col) => (
+                  <Pressable
+                    key={col.hex}
+                    onPress={() => setCatForm({ ...catForm, color: col.hex })}
+                    accessibilityLabel={col.name}
+                    style={[s.swatch, { backgroundColor: col.hex }, col.hex === catForm.color && { borderWidth: 3, borderColor: c.ink }]}
+                  />
+                ))}
+              </View>
+              <View style={s.wrap}>
+                <Chip label={catForm.id === null ? "Add category" : "Save category"} on onPress={saveCategory} />
+                <Chip label="Cancel" on={false} onPress={() => setCatForm(null)} />
+                {catForm.id !== null && <Chip label="Delete" on={false} onPress={deleteCategory} />}
+              </View>
             </View>
           )}
 
@@ -174,14 +279,51 @@ export default function TaskSheet({ task, isNew, onSave, onDelete, onSkipDay, on
           )}
 
           {label("Notes")}
-          <TextInput
-            style={[s.notes, { borderColor: c.line, backgroundColor: c.bg, color: c.ink }]}
-            multiline
-            placeholder="Add details…"
-            placeholderTextColor={c.muted}
-            value={t.notes}
-            onChangeText={(notes) => set({ notes })}
-          />
+          {noteLines.map((l, i) => (
+            <View key={i} style={s.noteRow}>
+              {l.kind === "check" && (
+                <Pressable
+                  onPress={() => patchLine(i, { checked: !l.checked })}
+                  hitSlop={6}
+                  style={[s.mini, { borderColor: c.line }, l.checked && { backgroundColor: c.ink, borderColor: c.ink }]}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: l.checked }}
+                >
+                  {l.checked && <Text style={{ color: c.bg, fontWeight: "900" }}>✓</Text>}
+                </Pressable>
+              )}
+              {l.kind === "point" && <Text style={{ color: c.muted, width: 20, textAlign: "center" }}>•</Text>}
+              <TextInput
+                style={[
+                  s.noteInput,
+                  { borderColor: c.line, backgroundColor: l.highlight ? "#FFE98A" : c.bg, color: l.highlight ? "#1B2230" : c.ink },
+                  l.checked && { textDecorationLine: "line-through", opacity: 0.7 },
+                ]}
+                placeholder={l.kind === "check" ? "To-do item" : l.kind === "point" ? "Point" : "Note"}
+                placeholderTextColor={c.muted}
+                value={l.text}
+                autoFocus={i === noteLines.length - 1 && l.text === ""}
+                onChangeText={(text) => patchLine(i, { text: text.replace(/\n/g, " ") })}
+                onSubmitEditing={() => setLines([...noteLines.slice(0, i + 1), { ...l, checked: false, highlight: false, text: "" }, ...noteLines.slice(i + 1)])}
+                blurOnSubmit={false}
+              />
+              <Pressable
+                onPress={() => patchLine(i, { highlight: !l.highlight })}
+                style={[s.mini, { borderColor: c.line }, l.highlight && { backgroundColor: "#FFE98A", borderColor: "#E8C84A" }]}
+                accessibilityLabel="Highlight"
+              >
+                <Text style={{ color: l.highlight ? "#1B2230" : c.ink }}>✎</Text>
+              </Pressable>
+              <Pressable onPress={() => setLines(noteLines.filter((_, j) => j !== i))} style={[s.mini, { borderColor: c.line }]} accessibilityLabel="Remove line">
+                <Text style={{ color: c.ink }}>×</Text>
+              </Pressable>
+            </View>
+          ))}
+          <View style={s.wrap}>
+            <Chip label="☑ Checklist item" on={false} onPress={() => addLine("check")} />
+            <Chip label="• Point" on={false} onPress={() => addLine("point")} />
+            <Chip label="¶ Text" on={false} onPress={() => addLine("text")} />
+          </View>
 
           <View style={s.actions}>
             {!isNew && (
@@ -212,15 +354,19 @@ const s = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   emojiBtn: { width: 56, height: 56, borderRadius: 18, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   titleInput: { flex: 1, fontSize: 22, fontWeight: "800" },
+  emojiGroupLabel: { fontSize: 11, fontWeight: "700", opacity: 0.55, letterSpacing: 0.5, marginTop: 8, marginBottom: 2 },
   emojiGrid: { flexDirection: "row", flexWrap: "wrap" },
   emojiCell: { width: "12.5%", alignItems: "center", paddingVertical: 6, borderRadius: 10 },
   label: { fontSize: 13, fontWeight: "700", marginTop: 6 },
   row: { flexDirection: "row", gap: 10 },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" },
+  catForm: { gap: 10, borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 8 },
   swatch: { width: 32, height: 32, borderRadius: 16 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   num: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, minWidth: 60, textAlign: "center" },
-  notes: { borderWidth: 1, borderRadius: 12, padding: 12, minHeight: 80, textAlignVertical: "top" },
+  noteRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  noteInput: { flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7 },
+  mini: { width: 30, height: 30, borderRadius: 8, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   actions: { flexDirection: "row", gap: 8, justifyContent: "flex-end", marginTop: 12 },
   btn: { borderRadius: 999, paddingHorizontal: 18, paddingVertical: 12 },
 });

@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "b7335b6f-3d41-44fb-a2c4-9011c27c1315"
+      }
+    },
+    "android": {
+      "package": "com.monishas.naalplanner"
+    }
+  }
+}

@@ -5,6 +5,7 @@ import { signOut, type User } from "firebase/auth";
 import {
   addDays,
   dayProgress,
+  fullDayStreak,
   dayTitle,
   isDoneOn,
   monthLabel,
@@ -12,6 +13,7 @@ import {
   nowMinutes,
   tasksOn,
   todayStr,
+  useCategories,
   useNow,
   useTasks,
   type Task,
@@ -21,20 +23,36 @@ import WeekStrip from "./WeekStrip";
 import MonthCalendar from "./MonthCalendar";
 import Timeline from "./Timeline";
 import TaskSheet from "./TaskSheet";
+import ThemeToggle from "./ThemeToggle";
+import Report from "./Report";
+import Celebration from "./Celebration";
 
 export default function Planner({ user }: { user: User }) {
   const { db, auth } = getFirebase();
   const { tasks, loading, error, save, remove, toggleDone, skipDay } = useTasks(db, user.uid);
+  const cats = useCategories(db, user.uid);
   const now = useNow();
   const [date, setDate] = useState(todayStr());
   const [tab, setTab] = useState<"day" | "inbox">("day");
   const [editing, setEditing] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [showMonth, setShowMonth] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
 
   const isToday = date === todayStr();
   const anytime = tasksOn(tasks, date).filter((t) => t.start === null);
   const inbox = tasks.filter((t) => t.date === null).sort((a, b) => b.createdAt - a.createdAt);
   const progress = dayProgress(tasks, date);
+  const { streak, todayDone } = fullDayStreak(tasks);
+
+  // celebrate once when today flips to fully done (not on first load)
+  const wasDone = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (loading) return;
+    if (wasDone.current === false && todayDone) setCelebrate(true);
+    wasDone.current = todayDone;
+  }, [todayDone, loading]);
+  const todayTasks = tasksOn(tasks, todayStr()).filter((t) => isDoneOn(t, todayStr()));
 
   const openNew = (p: Partial<Task> = {}) => {
     const start = isToday ? Math.ceil((nowMinutes() + 1) / 15) * 15 : 9 * 60;
@@ -106,6 +124,10 @@ export default function Planner({ user }: { user: User }) {
       </aside>
 
       <main className="main">
+        {showReport ? (
+          <Report tasks={tasks} categories={cats.categories} onClose={() => setShowReport(false)} onPickDay={(d) => { setDate(d); setShowReport(false); }} />
+        ) : (
+        <>
         <header className="top">
           <div className="top-row">
             <button className="date-title" onClick={() => setShowMonth((s) => !s)} aria-expanded={showMonth}>
@@ -113,6 +135,9 @@ export default function Planner({ user }: { user: User }) {
               <span className="muted small">{monthLabel(date)} ▾</span>
             </button>
             <div className="top-actions">
+              {streak > 0 && <button className="chip streak-chip" onClick={() => todayDone && setCelebrate(true)} title="Full-day streak">🔥 {streak}</button>}
+              <button className="chip" onClick={() => setShowReport(true)}>📊 Reports</button>
+              <ThemeToggle />
               {!isToday && <button className="chip" onClick={() => setDate(todayStr())}>Today</button>}
               <button className="icon-btn" onClick={() => setDate(addDays(date, -1))} aria-label="Previous day">‹</button>
               <button className="icon-btn" onClick={() => setDate(addDays(date, 1))} aria-label="Next day">›</button>
@@ -173,6 +198,7 @@ export default function Planner({ user }: { user: User }) {
               onOpen={(t) => setEditing({ task: t, isNew: false })}
               onToggle={(t) => toggleDone(t, date)}
               onAddAt={(start) => openNew({ start })}
+              onNotes={(t, notes) => save({ ...t, notes })}
             />
           )}
         </div>
@@ -180,7 +206,18 @@ export default function Planner({ user }: { user: User }) {
         <div className={`mobile-inbox${tab === "inbox" ? "" : " hide-mobile"}`}>{inboxList}</div>
 
         <button className="fab" onClick={() => openNew()} aria-label="Add task">＋</button>
+        </>
+        )}
       </main>
+
+      {celebrate && (
+        <Celebration
+          streak={streak}
+          done={todayTasks.length}
+          minutes={todayTasks.reduce((n, t) => n + t.duration, 0)}
+          onClose={() => setCelebrate(false)}
+        />
+      )}
 
       {editing && (
         <TaskSheet
@@ -188,6 +225,7 @@ export default function Planner({ user }: { user: User }) {
           task={editing.task}
           isNew={editing.isNew}
           viewDate={date}
+          cats={cats}
           onClose={() => setEditing(null)}
           onSave={(t) => { save(t); setEditing(null); }}
           onDelete={(t) => { remove(t.id); setEditing(null); }}

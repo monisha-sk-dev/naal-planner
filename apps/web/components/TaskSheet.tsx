@@ -4,13 +4,19 @@ import { useEffect, useState } from "react";
 import {
   addDays,
   COLORS,
+  MAX_CATEGORIES,
   DURATIONS,
-  EMOJIS,
+  EMOJI_GROUPS,
   fmtDur,
   fromHHMM,
+  parseNotes,
   REPEAT_LABELS,
+  serializeNotes,
   todayStr,
   toHHMM,
+  type Category,
+  type NoteKind,
+  type NoteLine,
   type Repeat,
   type Task,
 } from "@naal/shared";
@@ -19,6 +25,7 @@ export default function TaskSheet({
   task,
   isNew,
   viewDate,
+  cats,
   onSave,
   onDelete,
   onSkipDay,
@@ -27,6 +34,12 @@ export default function TaskSheet({
   task: Task;
   isNew: boolean;
   viewDate: string;
+  cats: {
+    categories: Category[];
+    add: (name: string, color: string) => Category;
+    update: (id: string, patch: Partial<Omit<Category, "id">>) => void;
+    remove: (id: string) => void;
+  };
   onSave: (t: Task) => void;
   onDelete: (t: Task) => void;
   onSkipDay: (t: Task) => void;
@@ -35,12 +48,42 @@ export default function TaskSheet({
   const [t, setT] = useState<Task>(task);
   const [showEmoji, setShowEmoji] = useState(false);
   const set = (p: Partial<Task>) => setT((prev) => ({ ...prev, ...p }));
+  // null = closed; id null = creating a new category
+  const [catForm, setCatForm] = useState<{ id: string | null; name: string; color: string } | null>(null);
+  const current = cats.categories.find((c) => c.id === t.categoryId);
+
+  const pickCategory = (c: Category | null) => {
+    setCatForm(null);
+    set(c ? { categoryId: c.id, color: c.color } : { categoryId: null });
+  };
+  const saveCategory = () => {
+    if (!catForm || !catForm.name.trim()) return;
+    if (catForm.id === null) {
+      const c = cats.add(catForm.name, catForm.color);
+      set({ categoryId: c.id, color: c.color });
+    } else {
+      cats.update(catForm.id, { name: catForm.name.trim(), color: catForm.color });
+      if (t.categoryId === catForm.id) set({ color: catForm.color });
+    }
+    setCatForm(null);
+  };
+  const deleteCategory = () => {
+    if (!catForm?.id || !window.confirm("Delete this category? Its tasks become Uncategorised.")) return;
+    cats.remove(catForm.id);
+    if (t.categoryId === catForm.id) set({ categoryId: null });
+    setCatForm(null);
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  const noteLines = parseNotes(t.notes);
+  const setLines = (lines: NoteLine[]) => set({ notes: serializeNotes(lines) });
+  const patchLine = (i: number, p: Partial<NoteLine>) => setLines(noteLines.map((l, j) => (j === i ? { ...l, ...p } : l)));
+  const addLine = (kind: NoteKind) => setLines([...noteLines, { kind, checked: false, highlight: false, text: "" }]);
 
   const save = () => {
     onSave({ ...t, title: t.title.trim() || "Untitled" });
@@ -73,14 +116,71 @@ export default function TaskSheet({
         </div>
 
         {showEmoji && (
-          <div className="emoji-grid">
-            {EMOJIS.map((em) => (
-              <button key={em} className={em === t.emoji ? "on" : ""} onClick={() => { set({ emoji: em }); setShowEmoji(false); }}>
-                {em}
-              </button>
+          <div className="emoji-picker">
+            {EMOJI_GROUPS.map((g) => (
+              <div key={g.name}>
+                <div className="emoji-group-label">{g.name}</div>
+                <div className="emoji-grid">
+                  {g.emojis.map((em) => (
+                    <button key={em} className={em === t.emoji ? "on" : ""} onClick={() => { set({ emoji: em }); setShowEmoji(false); }}>
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}
+
+        <div className="field">
+          <span className="field-label">Category</span>
+          <div className="chips">
+            {cats.categories.map((c) => (
+              <button key={c.id} className={c.id === t.categoryId ? "chip on" : "chip"} onClick={() => pickCategory(c)}>
+                <span className="cat-dot" style={{ background: c.color }} /> {c.name}
+              </button>
+            ))}
+            {current && (
+              <button className="chip small" onClick={() => setCatForm({ id: current.id, name: current.name, color: current.color })}>✎ Edit</button>
+            )}
+            {cats.categories.length < MAX_CATEGORIES && (
+              <button
+                className="chip small"
+                onClick={() => setCatForm({ id: null, name: "", color: COLORS.find((c) => !cats.categories.some((k) => k.color === c.hex))?.hex ?? COLORS[0].hex })}
+              >
+                ＋ New
+              </button>
+            )}
+          </div>
+          {catForm && (
+            <div className="cat-form">
+              <input
+                className="chip-input"
+                autoFocus
+                placeholder="Category name (e.g. Extra)"
+                value={catForm.name}
+                onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
+                onKeyDown={(e) => e.key === "Enter" && saveCategory()}
+              />
+              <div className="swatches">
+                {COLORS.map((c) => (
+                  <button
+                    key={c.hex}
+                    className={`swatch${c.hex === catForm.color ? " on" : ""}`}
+                    style={{ background: c.hex }}
+                    onClick={() => setCatForm({ ...catForm, color: c.hex })}
+                    aria-label={c.name}
+                  />
+                ))}
+              </div>
+              <div className="chips">
+                <button className="btn primary" onClick={saveCategory}>{catForm.id === null ? "Add category" : "Save category"}</button>
+                <button className="btn ghost" onClick={() => setCatForm(null)}>Cancel</button>
+                {catForm.id !== null && <button className="btn ghost danger" onClick={deleteCategory}>Delete</button>}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="field">
           <span className="field-label">Colour</span>
@@ -168,7 +268,45 @@ export default function TaskSheet({
 
         <div className="field">
           <span className="field-label">Notes</span>
-          <textarea rows={3} placeholder="Add details…" value={t.notes} onChange={(e) => set({ notes: e.target.value })} />
+          <div className="note-ed">
+            {noteLines.map((l, i) => (
+              <div key={i} className={`note-ed-row${l.highlight ? " hl" : ""}${l.checked ? " checked" : ""}`}>
+                {l.kind === "check" && (
+                  <button type="button" className={`mini${l.checked ? " on" : ""}`} onClick={() => patchLine(i, { checked: !l.checked })} aria-label="Done" aria-pressed={l.checked}>
+                    {l.checked ? "✓" : ""}
+                  </button>
+                )}
+                {l.kind === "point" && <span className="note-bullet">•</span>}
+                <input
+                  type="text"
+                  autoFocus={i === noteLines.length - 1 && l.text === ""}
+                  placeholder={l.kind === "check" ? "To-do item" : l.kind === "point" ? "Point" : "Note"}
+                  value={l.text}
+                  onChange={(e) => patchLine(i, { text: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setLines([...noteLines.slice(0, i + 1), { ...l, checked: false, highlight: false, text: "" }, ...noteLines.slice(i + 1)]);
+                    }
+                    if (e.key === "Backspace" && l.text === "") {
+                      e.preventDefault();
+                      setLines(noteLines.filter((_, j) => j !== i));
+                    }
+                  }}
+                />
+                <button type="button" className={`mini hlbtn${l.highlight ? " on" : ""}`} onClick={() => patchLine(i, { highlight: !l.highlight })} aria-label="Highlight" aria-pressed={l.highlight}>
+                  ✎
+                </button>
+                <button type="button" className="mini" onClick={() => setLines(noteLines.filter((_, j) => j !== i))} aria-label="Remove line">×</button>
+              </div>
+            ))}
+            <div className="chips">
+              <button type="button" className="chip small" onClick={() => addLine("check")}>☑ Checklist item</button>
+              <button type="button" className="chip small" onClick={() => addLine("point")}>• Point</button>
+              <button type="button" className="chip small" onClick={() => addLine("text")}>¶ Text</button>
+            </div>
+          </div>
         </div>
 
         <div className="sheet-actions">

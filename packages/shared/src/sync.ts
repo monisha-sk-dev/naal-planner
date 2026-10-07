@@ -9,7 +9,7 @@ import {
   setDoc,
   type Firestore,
 } from "firebase/firestore";
-import { newTask, normalizeTask, nowMinutes, toggleDonePatch, type Task } from "./core";
+import { DEFAULT_CATEGORIES, newTask, normalizeTask, nowMinutes, toggleDonePatch, uid as newId, type Category, type Task } from "./core";
 
 const tasksCol = (db: Firestore, uid: string) => collection(db, "users", uid, "tasks");
 
@@ -78,6 +78,50 @@ export function useTasks(db: Firestore | null, uid: string | null) {
   }, [db, uid]);
 
   return { tasks, loading, error, ...api };
+}
+
+/**
+ * User-defined categories, stored as one doc: users/{uid}/meta/categories.
+ * Until the user edits them, the defaults (Learn, Work) are shown.
+ */
+export function useCategories(db: Firestore | null, uid: string | null) {
+  const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
+
+  useEffect(() => {
+    if (!db || !uid) {
+      setCategories(DEFAULT_CATEGORIES);
+      return;
+    }
+    return onSnapshot(
+      doc(db, "users", uid, "meta", "categories"),
+      (snap) => {
+        const list = snap.data()?.list as Category[] | undefined;
+        setCategories(Array.isArray(list) ? list : DEFAULT_CATEGORIES);
+      },
+      () => {}
+    );
+  }, [db, uid]);
+
+  const api = useMemo(() => {
+    const write = async (list: Category[]) => {
+      if (!db || !uid) return;
+      setCategories(list);
+      await setDoc(doc(db, "users", uid, "meta", "categories"), { list });
+    };
+    return {
+      add: (name: string, color: string): Category => {
+        const c = { id: newId(), name: name.trim(), color };
+        write([...categories, c]);
+        return c;
+      },
+      update: (id: string, patch: Partial<Omit<Category, "id">>) =>
+        write(categories.map((c) => (c.id === id ? { ...c, ...patch } : c))),
+      // tasks keep the dead id and simply show up as "Uncategorised"
+      remove: (id: string) => write(categories.filter((c) => c.id !== id)),
+    };
+  }, [db, uid, categories]);
+
+  return { categories, ...api };
 }
 
 /** Current minute of the day, refreshed every 30 seconds */

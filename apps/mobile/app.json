@@ -11,12 +11,21 @@
       "resizeMode": "contain",
       "backgroundColor": "#EEF0F4"
     },
+    "ios": {
+      "bundleIdentifier": "com.dinesh.naal",
+      "supportsTablet": true
+    },
     "android": {
       "package": "com.dinesh.naal",
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#EEF0F4"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b7335b6f-3d41-44fb-a2c4-9011c27c1315"
       }
     }
   }

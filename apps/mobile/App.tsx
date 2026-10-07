@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
@@ -7,6 +7,7 @@ import { onAuthStateChanged, signOut, type User } from "firebase/auth";
 import {
   addDays,
   dayProgress,
+  fullDayStreak,
   dayTitle,
   isDoneOn,
   monthLabel,
@@ -16,6 +17,7 @@ import {
   tasksOn,
   todayStr,
   useNow,
+  useCategories,
   useTasks,
   ymd,
   type Task,
@@ -26,6 +28,8 @@ import AuthScreen from "./components/AuthScreen";
 import WeekStrip from "./components/WeekStrip";
 import Timeline from "./components/Timeline";
 import TaskSheet from "./components/TaskSheet";
+import Report from "./components/Report";
+import Celebration from "./components/Celebration";
 
 export default function App() {
   const c = useTheme();
@@ -51,16 +55,29 @@ export default function App() {
 function Planner({ user }: { user: User }) {
   const c = useTheme();
   const { tasks, loading, error, save, remove, toggleDone, skipDay } = useTasks(db, user.uid);
+  const cats = useCategories(db, user.uid);
   const now = useNow();
   const [date, setDate] = useState(todayStr());
   const [tab, setTab] = useState<"day" | "inbox">("day");
   const [editing, setEditing] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [pickDate, setPickDate] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
 
   const isToday = date === todayStr();
   const anytime = tasksOn(tasks, date).filter((t) => t.start === null);
   const inbox = tasks.filter((t) => t.date === null).sort((a, b) => b.createdAt - a.createdAt);
   const progress = dayProgress(tasks, date);
+  const { streak, todayDone } = fullDayStreak(tasks);
+
+  // celebrate once when today flips to fully done (not on first load)
+  const wasDone = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (loading) return;
+    if (wasDone.current === false && todayDone) setCelebrate(true);
+    wasDone.current = todayDone;
+  }, [todayDone, loading]);
+  const doneToday = tasksOn(tasks, todayStr()).filter((t) => isDoneOn(t, todayStr()));
 
   const openNew = (p: Partial<Task> = {}) => {
     const start = isToday ? Math.ceil((nowMinutes() + 1) / 15) * 15 : 9 * 60;
@@ -73,8 +90,28 @@ function Planner({ user }: { user: User }) {
       { text: "Sign out", style: "destructive", onPress: () => signOut(auth) },
     ]);
 
+  if (showReport) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={["top", "left", "right"]}>
+        <Report
+          tasks={tasks}
+          categories={cats.categories}
+          onClose={() => setShowReport(false)}
+          onPickDay={(d) => {
+            setDate(d);
+            setTab("day");
+            setShowReport(false);
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={["top", "left", "right"]}>
+      {celebrate && (
+        <Celebration streak={streak} done={doneToday.length} minutes={doneToday.reduce((n, t) => n + t.duration, 0)} onClose={() => setCelebrate(false)} />
+      )}
       <View style={s.header}>
         <View style={s.topRow}>
           <Pressable onPress={() => setPickDate(true)} accessibilityLabel="Pick a date">
@@ -92,6 +129,14 @@ function Planner({ user }: { user: User }) {
             </Pressable>
             <Pressable onPress={() => setDate(addDays(date, 1))} style={[s.icon, { borderColor: c.line, backgroundColor: c.surface }]} accessibilityLabel="Next day">
               <Text style={[s.iconText, { color: c.ink }]}>›</Text>
+            </Pressable>
+            {streak > 0 && (
+              <Pressable onPress={() => todayDone && setCelebrate(true)} style={[s.chip, { borderColor: c.line, backgroundColor: c.surface }]} accessibilityLabel={`${streak} day streak`}>
+                <Text style={{ color: c.ink, fontWeight: "700" }}>🔥 {streak}</Text>
+              </Pressable>
+            )}
+            <Pressable onPress={() => setShowReport(true)} style={[s.icon, { borderColor: c.line, backgroundColor: c.surface }]} accessibilityLabel="Reports">
+              <Text>📊</Text>
             </Pressable>
             <Pressable onPress={menu} style={[s.icon, { borderColor: c.line, backgroundColor: c.surface }]} accessibilityLabel="Account">
               <Text style={{ color: c.ink }}>⋯</Text>
@@ -159,6 +204,7 @@ function Planner({ user }: { user: User }) {
                 onOpen={(t) => setEditing({ task: t, isNew: false })}
                 onToggle={(t) => toggleDone(t, date)}
                 onAddAt={(start) => openNew({ start })}
+                onNotes={(t, notes) => save({ ...t, notes })}
               />
             )}
           </>
@@ -212,6 +258,7 @@ function Planner({ user }: { user: User }) {
           key={editing.task.id}
           task={editing.task}
           isNew={editing.isNew}
+          cats={cats}
           onClose={() => setEditing(null)}
           onSave={(t) => {
             save(t);

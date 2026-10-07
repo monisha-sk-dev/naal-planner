@@ -1,6 +1,6 @@
 "use client";
 
-import { buildTimeline, fmtDur, fmtTime, type Task } from "@naal/shared";
+import { buildTimeline, fmtDur, fmtTime, parseNotes, toggleNoteCheck, type Task } from "@naal/shared";
 
 const pillHeight = (dur: number) => Math.max(56, Math.min(170, dur * 1.1));
 
@@ -11,6 +11,7 @@ export default function Timeline({
   onOpen,
   onToggle,
   onAddAt,
+  onNotes,
 }: {
   tasks: Task[];
   date: string;
@@ -18,6 +19,7 @@ export default function Timeline({
   onOpen: (t: Task) => void;
   onToggle: (t: Task) => void;
   onAddAt: (start: number) => void;
+  onNotes: (t: Task, notes: string) => void;
 }) {
   const items = buildTimeline(tasks, date, nowMin);
 
@@ -74,14 +76,42 @@ export default function Timeline({
                 <span className="pill-emoji">{task.emoji}</span>
               </span>
             </span>
-            <button className="task-body" onClick={() => onOpen(task)} style={{ minHeight: h }}>
+            <div
+              className="task-body"
+              role="button"
+              tabIndex={0}
+              onClick={() => onOpen(task)}
+              onKeyDown={(e) => e.target === e.currentTarget && (e.key === "Enter" || e.key === " ") && onOpen(task)}
+              style={{ minHeight: h }}
+            >
               <span className="task-meta">
                 {fmtTime(start)} – {fmtTime(end)} ({fmtDur(task.duration)})
                 {task.repeat !== "none" && " · ↻"}
               </span>
               <span className="task-title">{task.title || "Untitled"}</span>
-              {task.notes && <span className="task-notes">{task.notes}</span>}
-            </button>
+              {task.notes && (
+                <span className="task-notes">
+                  {parseNotes(task.notes).map((l, li) => (
+                    <span key={li} className={`note-line${l.highlight ? " hl" : ""}${l.checked ? " checked" : ""}`}>
+                      {l.kind === "check" && (
+                        <button
+                          type="button"
+                          className={`note-box${l.checked ? " on" : ""}`}
+                          role="checkbox"
+                          aria-checked={l.checked}
+                          aria-label={l.text}
+                          onClick={(e) => { e.stopPropagation(); onNotes(task, toggleNoteCheck(task.notes, li)); }}
+                        >
+                          {l.checked ? "✓" : ""}
+                        </button>
+                      )}
+                      {l.kind === "point" && <span className="note-bullet">•</span>}
+                      <span className="note-text">{l.text}</span>
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
             <button
               className={`check${done ? " on" : ""}`}
               style={{ ["--c" as string]: task.color }}
