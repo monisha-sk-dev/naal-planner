@@ -17,6 +17,8 @@ export interface Task {
   duration: number;
   repeat: Repeat;
   notes: string;
+  /** what I learned, per day: { "YYYY-MM-DD": "text" } (editable any time) */
+  learned: Record<string, string>;
   /** used when repeat === "none" */
   done: boolean;
   /** used for repeating tasks: dates on which it was completed */
@@ -194,6 +196,33 @@ export function toggleDonePatch(t: Task, date: string): Partial<Task> {
   return { doneDates: Array.from(set).sort().slice(-400) };
 }
 
+/** The day a task's "learned" note belongs to: the viewed day for repeating tasks, its own date otherwise. */
+export function learnedKey(t: Task, viewDate: string): string {
+  return t.repeat === "none" ? t.date ?? viewDate : viewDate;
+}
+
+export function learnedPatch(t: Task, date: string, text: string): Partial<Task> {
+  const next = { ...t.learned };
+  if (text.trim()) next[date] = text;
+  else delete next[date];
+  return { learned: next };
+}
+
+export interface LearningEntry {
+  date: string;
+  task: Task;
+  text: string;
+}
+
+/** All "what I learned" notes, newest day first. */
+export function learningLog(tasks: Task[]): LearningEntry[] {
+  const out: LearningEntry[] = [];
+  for (const task of tasks)
+    for (const [date, text] of Object.entries(task.learned ?? {}))
+      if (text.trim()) out.push({ date, task, text });
+  return out.sort((a, b) => b.date.localeCompare(a.date) || b.task.updatedAt - a.task.updatedAt);
+}
+
 export function tasksOn(tasks: Task[], date: string): Task[] {
   return tasks.filter((t) => occursOn(t, date));
 }
@@ -211,6 +240,7 @@ export function newTask(p: Partial<Task> = {}): Task {
     duration: 30,
     repeat: "none",
     notes: "",
+    learned: {},
     done: false,
     doneDates: [],
     skipDates: [],

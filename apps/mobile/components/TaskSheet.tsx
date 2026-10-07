@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { Alert, KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import {
@@ -10,6 +11,8 @@ import {
   EMOJI_GROUPS,
   fmtDur,
   fmtTime,
+  learnedKey,
+  learnedPatch,
   parseNotes,
   parseYmd,
   REPEAT_LABELS,
@@ -27,6 +30,9 @@ import { tint, useTheme } from "../lib/theme";
 type Props = {
   task: Task;
   isNew: boolean;
+  viewDate: string;
+  /** open onto the "what I learned" box (after completing a Learn task) */
+  focusLearned?: boolean;
   cats: {
     categories: Category[];
     add: (name: string, color: string) => Category;
@@ -39,7 +45,7 @@ type Props = {
   onClose: () => void;
 };
 
-export default function TaskSheet({ task, isNew, cats, onSave, onDelete, onSkipDay, onClose }: Props) {
+export default function TaskSheet({ task, isNew, viewDate, focusLearned, cats, onSave, onDelete, onSkipDay, onClose }: Props) {
   const c = useTheme();
   const [t, setT] = useState<Task>(task);
   const [showEmoji, setShowEmoji] = useState(false);
@@ -82,6 +88,8 @@ export default function TaskSheet({ task, isNew, cats, onSave, onDelete, onSkipD
     ]);
   };
 
+  const learnKey = learnedKey(t, viewDate);
+  const showLearned = t.categoryId === "learn" || Object.keys(t.learned).length > 0;
   const noteLines = parseNotes(t.notes);
   const setLines = (lines: NoteLine[]) => set({ notes: serializeNotes(lines) });
   const patchLine = (i: number, p: Partial<NoteLine>) => setLines(noteLines.map((l, j) => (j === i ? { ...l, ...p } : l)));
@@ -156,7 +164,7 @@ export default function TaskSheet({ task, isNew, cats, onSave, onDelete, onSkipD
             <View>
               {EMOJI_GROUPS.map((g) => (
                 <View key={g.name}>
-                  <Text style={s.emojiGroupLabel}>{g.name.toUpperCase()}</Text>
+                  <Text style={[s.emojiGroupLabel, { color: c.muted }]}>{g.name.toUpperCase()}</Text>
                   <View style={s.emojiGrid}>
                     {g.emojis.map((em) => (
                       <Pressable
@@ -289,7 +297,7 @@ export default function TaskSheet({ task, isNew, cats, onSave, onDelete, onSkipD
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: l.checked }}
                 >
-                  {l.checked && <Text style={{ color: c.bg, fontWeight: "900" }}>✓</Text>}
+                  {l.checked && <Ionicons name="checkmark" size={14} color={c.bg} />}
                 </Pressable>
               )}
               {l.kind === "point" && <Text style={{ color: c.muted, width: 20, textAlign: "center" }}>•</Text>}
@@ -312,10 +320,10 @@ export default function TaskSheet({ task, isNew, cats, onSave, onDelete, onSkipD
                 style={[s.mini, { borderColor: c.line }, l.highlight && { backgroundColor: "#FFE98A", borderColor: "#E8C84A" }]}
                 accessibilityLabel="Highlight"
               >
-                <Text style={{ color: l.highlight ? "#1B2230" : c.ink }}>✎</Text>
+                <Ionicons name="color-wand-outline" size={15} color={l.highlight ? "#1B2230" : c.ink} />
               </Pressable>
               <Pressable onPress={() => setLines(noteLines.filter((_, j) => j !== i))} style={[s.mini, { borderColor: c.line }]} accessibilityLabel="Remove line">
-                <Text style={{ color: c.ink }}>×</Text>
+                <Ionicons name="close" size={16} color={c.ink} />
               </Pressable>
             </View>
           ))}
@@ -324,6 +332,21 @@ export default function TaskSheet({ task, isNew, cats, onSave, onDelete, onSkipD
             <Chip label="• Point" on={false} onPress={() => addLine("point")} />
             <Chip label="¶ Text" on={false} onPress={() => addLine("text")} />
           </View>
+
+          {showLearned && (
+            <>
+              {label(`What I learned${t.repeat !== "none" ? ` (${dayTitle(learnKey)})` : ""}`)}
+              <TextInput
+                style={[s.learned, { borderColor: c.line, backgroundColor: c.bg, color: c.ink }]}
+                multiline
+                autoFocus={focusLearned}
+                placeholder="Oru line-la: indha session-la enna katruken?"
+                placeholderTextColor={c.muted}
+                value={t.learned[learnKey] ?? ""}
+                onChangeText={(v) => set(learnedPatch(t, learnKey, v))}
+              />
+            </>
+          )}
 
           <View style={s.actions}>
             {!isNew && (
@@ -354,7 +377,7 @@ const s = StyleSheet.create({
   titleRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   emojiBtn: { width: 56, height: 56, borderRadius: 18, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   titleInput: { flex: 1, fontSize: 22, fontWeight: "800" },
-  emojiGroupLabel: { fontSize: 11, fontWeight: "700", opacity: 0.55, letterSpacing: 0.5, marginTop: 8, marginBottom: 2 },
+  emojiGroupLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginTop: 8, marginBottom: 2 },
   emojiGrid: { flexDirection: "row", flexWrap: "wrap" },
   emojiCell: { width: "12.5%", alignItems: "center", paddingVertical: 6, borderRadius: 10 },
   label: { fontSize: 13, fontWeight: "700", marginTop: 6 },
@@ -366,6 +389,7 @@ const s = StyleSheet.create({
   num: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, minWidth: 60, textAlign: "center" },
   noteRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   noteInput: { flex: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7 },
+  learned: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, minHeight: 72, textAlignVertical: "top" },
   mini: { width: 30, height: 30, borderRadius: 8, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   actions: { flexDirection: "row", gap: 8, justifyContent: "flex-end", marginTop: 12 },
   btn: { borderRadius: 999, paddingHorizontal: 18, paddingVertical: 12 },

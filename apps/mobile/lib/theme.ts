@@ -1,4 +1,6 @@
-import { useColorScheme } from "react-native";
+import { useSyncExternalStore } from "react";
+import { Appearance, useColorScheme } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const light = {
   bg: "#EEF0F4",
@@ -25,6 +27,39 @@ const dark: typeof light = {
 
 export type Theme = typeof light;
 export const useTheme = (): Theme => (useColorScheme() === "dark" ? dark : light);
+
+export type ThemePref = "system" | "light" | "dark";
+const KEY = "themePref";
+let pref: ThemePref = "system";
+const listeners = new Set<() => void>();
+
+// Appearance.setColorScheme also restyles native bits (date pickers, status bar, alerts)
+const apply = (p: ThemePref) => Appearance.setColorScheme(p === "system" ? "unspecified" : p);
+
+AsyncStorage.getItem(KEY)
+  .then((v) => {
+    if (v !== "light" && v !== "dark") return;
+    pref = v;
+    apply(v);
+    listeners.forEach((l) => l());
+  })
+  .catch(() => {});
+
+export const setThemePref = (p: ThemePref) => {
+  pref = p;
+  apply(p);
+  listeners.forEach((l) => l());
+  AsyncStorage.setItem(KEY, p).catch(() => {});
+};
+
+export const useThemePref = (): ThemePref =>
+  useSyncExternalStore(
+    (cb) => {
+      listeners.add(cb);
+      return () => void listeners.delete(cb);
+    },
+    () => pref,
+  );
 
 /** hex colour with alpha, e.g. tint("#2F285B", 0.25) */
 export const tint = (hex: string, alpha: number) =>

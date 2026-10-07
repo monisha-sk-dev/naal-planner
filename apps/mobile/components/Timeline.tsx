@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { buildTimeline, fmtDur, fmtTime, parseNotes, toggleNoteCheck, type Task } from "@naal/shared";
 import { tint, useTheme } from "../lib/theme";
 
@@ -95,7 +96,10 @@ export default function Timeline({
                 <Text style={s.emoji}>{task.emoji}</Text>
               </View>
             </View>
-            <Pressable style={[s.body, { minHeight: h }]} onPress={() => onOpen(task)}>
+            <Pressable
+              style={[s.body, s.card, { minHeight: h, backgroundColor: c.surface, borderColor: c.line, borderLeftColor: task.color }]}
+              onPress={() => onOpen(task)}
+            >
               <Text style={{ color: c.muted, fontSize: 12 }}>
                 {fmtTime(start)} – {fmtTime(end)} ({fmtDur(task.duration)}){task.repeat !== "none" ? " · ↻" : ""}
               </Text>
@@ -118,7 +122,7 @@ export default function Timeline({
                       accessibilityState={{ checked: l.checked }}
                       accessibilityLabel={l.text}
                     >
-                      {l.checked && <Text style={{ color: c.bg, fontSize: 11, fontWeight: "900" }}>✓</Text>}
+                      {l.checked && <Ionicons name="checkmark" size={12} color={c.bg} />}
                     </Pressable>
                   )}
                   {l.kind === "point" && <Text style={{ color: c.muted, width: 18, textAlign: "center" }}>•</Text>}
@@ -142,7 +146,7 @@ export default function Timeline({
               accessibilityState={{ checked: done }}
               accessibilityLabel={task.title}
             >
-              {done && <Text style={s.tick}>✓</Text>}
+              {done && <Ionicons name="checkmark" size={18} color="#fff" />}
             </Pressable>
           </View>
         );
@@ -157,15 +161,19 @@ const s = StyleSheet.create({
   timeCol: { width: 62, justifyContent: "space-between", paddingVertical: 6 },
   time: { width: 62, fontSize: 12, paddingTop: 6 },
   timeEnd: { fontSize: 11, opacity: 0.7 },
-  rail: { width: 60, alignItems: "center", justifyContent: "center" },
+  rail: { width: 52, alignItems: "center", justifyContent: "center" },
   line: { position: "absolute", top: 0, bottom: 0, width: 2 },
   dashed: { width: 0, borderLeftWidth: 2, borderStyle: "dashed", backgroundColor: "transparent" },
   pill: { width: 48, borderRadius: 24, borderWidth: 2, overflow: "hidden", alignItems: "center", justifyContent: "center" },
   fill: { position: "absolute", top: 0, left: 0, right: 0 },
   emoji: { fontSize: 22 },
   body: { flex: 1, justifyContent: "center", paddingHorizontal: 8, gap: 2 },
+  card: {
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderLeftWidth: 4, gap: 3,
+    shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2,
+  },
   title: { fontSize: 16, fontWeight: "700" },
-  check: { alignSelf: "center", width: 30, height: 30, borderRadius: 15, borderWidth: 2, alignItems: "center", justifyContent: "center", marginLeft: 6 },
+  check: { alignSelf: "center", width: 32, height: 32, borderRadius: 16, borderWidth: 2, alignItems: "center", justifyContent: "center", marginLeft: 8 },
   noteLine: { flexDirection: "row", alignItems: "flex-start", gap: 6 },
   noteBox: { width: 18, height: 18, borderRadius: 5, borderWidth: 2, alignItems: "center", justifyContent: "center", marginTop: 1 },
   tick: { color: "#fff", fontWeight: "900" },

@@ -4,6 +4,7 @@
     "slug": "naal-planner",
     "version": "1.0.0",
     "orientation": "portrait",
+    "plugins": ["expo-notifications"],
     "userInterfaceStyle": "automatic",
     "icon": "./assets/logo.png",
     "splash": {

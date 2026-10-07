@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { Animated, Dimensions, Easing, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { celebrationLine, fmtDur, streakBadge } from "@naal/shared";
 import { useTheme } from "../lib/theme";
@@ -45,7 +46,10 @@ export default function Celebration({ streak, done, minutes, onClose }: { streak
             <Text style={{ color: c.ink }}><Text style={{ fontWeight: "800" }}>{done}</Text> tasks done</Text>
             {minutes > 0 && <Text style={{ color: c.ink }}><Text style={{ fontWeight: "800" }}>{fmtDur(minutes)}</Text> focused</Text>}
           </View>
-          <Text style={[s.streak, { color: c.ink }]}>🔥 {streak}-day streak</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name="flame" size={24} color={c.secondary} />
+            <Text style={[s.streak, { color: c.ink }]}>{streak}-day streak</Text>
+          </View>
           {badge && <Text style={{ color: c.ink, fontWeight: "700" }}>{badge}</Text>}
           <Pressable onPress={onClose} style={[s.btn, { backgroundColor: c.accent }]}>
             <Text style={{ color: "#fff", fontWeight: "700" }}>Nice! 🙌</Text>

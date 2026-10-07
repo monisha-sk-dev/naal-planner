@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import {
   addDays,
+  dayTitle,
   COLORS,
   MAX_CATEGORIES,
   DURATIONS,
   EMOJI_GROUPS,
   fmtDur,
   fromHHMM,
+  learnedKey,
+  learnedPatch,
   parseNotes,
   REPEAT_LABELS,
   serializeNotes,
@@ -25,6 +28,7 @@ export default function TaskSheet({
   task,
   isNew,
   viewDate,
+  focusLearned,
   cats,
   onSave,
   onDelete,
@@ -34,6 +38,8 @@ export default function TaskSheet({
   task: Task;
   isNew: boolean;
   viewDate: string;
+  /** open straight onto the "what I learned" box (after completing a Learn task) */
+  focusLearned?: boolean;
   cats: {
     categories: Category[];
     add: (name: string, color: string) => Category;
@@ -84,6 +90,10 @@ export default function TaskSheet({
   const setLines = (lines: NoteLine[]) => set({ notes: serializeNotes(lines) });
   const patchLine = (i: number, p: Partial<NoteLine>) => setLines(noteLines.map((l, j) => (j === i ? { ...l, ...p } : l)));
   const addLine = (kind: NoteKind) => setLines([...noteLines, { kind, checked: false, highlight: false, text: "" }]);
+
+  const learnKey = learnedKey(t, viewDate);
+  const learnedText = t.learned[learnKey] ?? "";
+  const showLearned = t.categoryId === "learn" || Object.keys(t.learned).length > 0;
 
   const save = () => {
     onSave({ ...t, title: t.title.trim() || "Untitled" });
@@ -308,6 +318,20 @@ export default function TaskSheet({
             </div>
           </div>
         </div>
+
+        {showLearned && (
+          <div className="field">
+            <span className="field-label">What I learned{t.repeat !== "none" ? ` (${dayTitle(learnKey)})` : ""}</span>
+            <textarea
+              className="learned-input"
+              rows={3}
+              autoFocus={focusLearned}
+              placeholder="Oru line-la: indha session-la enna katruken?"
+              value={learnedText}
+              onChange={(e) => set(learnedPatch(t, learnKey, e.target.value))}
+            />
+          </div>
+        )}
 
         <div className="sheet-actions">
           {!isNew && (

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   buildReport,
@@ -49,8 +50,9 @@ export default function Report({
     <View style={{ flex: 1 }}>
       <View style={s.head}>
         <Text style={[s.title, { color: c.ink }]}>{kind === "week" ? "Weekly" : "Monthly"} report</Text>
-        <Pressable onPress={onClose} style={[s.chip, { borderColor: c.line, backgroundColor: c.surface }]}>
-          <Text style={{ color: c.ink }}>← Planner</Text>
+        <Pressable onPress={onClose} style={[s.chip, { borderColor: c.line, backgroundColor: c.surface, flexDirection: "row", alignItems: "center", gap: 2 }]}>
+          <Ionicons name="chevron-back" size={16} color={c.ink} />
+          <Text style={{ color: c.ink, fontWeight: "600" }}>Planner</Text>
         </Pressable>
       </View>
       <View style={s.head}>
@@ -62,9 +64,9 @@ export default function Report({
           ))}
         </View>
         <View style={s.nav}>
-          <Pressable onPress={() => setAnchor(shiftPeriod(kind, anchor, -1))} style={s.navBtn}><Text style={[s.navTxt, { color: c.ink }]}>‹</Text></Pressable>
+          <Pressable onPress={() => setAnchor(shiftPeriod(kind, anchor, -1))} style={s.navBtn}><Ionicons name="chevron-back" size={20} color={c.ink} /></Pressable>
           <Text style={{ color: c.ink, fontWeight: "700", minWidth: 96, textAlign: "center" }}>{title}</Text>
-          <Pressable onPress={() => setAnchor(shiftPeriod(kind, anchor, 1))} style={s.navBtn}><Text style={[s.navTxt, { color: c.ink }]}>›</Text></Pressable>
+          <Pressable onPress={() => setAnchor(shiftPeriod(kind, anchor, 1))} style={s.navBtn}><Ionicons name="chevron-forward" size={20} color={c.ink} /></Pressable>
         </View>
       </View>
 

@@ -9,23 +9,26 @@ export default function WeekStrip({ date, tasks, onPick }: { date: string; tasks
     <View style={s.row}>
       {weekOf(date).map((d) => {
         const selected = d === date;
+        const isToday = d === today;
         return (
           <Pressable
             key={d}
             onPress={() => onPick(d)}
-            style={[s.day, selected && { backgroundColor: c.ink }]}
+            style={[
+              s.day,
+              { backgroundColor: selected ? c.accent : c.surface },
+              isToday && !selected && { borderColor: c.accent, borderWidth: 1.5 },
+            ]}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
           >
-            <Text style={[s.name, { color: selected ? c.bg : c.muted }]}>{dayShort(d)}</Text>
-            <Text style={[s.num, { color: d === today ? c.accent : selected ? c.bg : c.ink }]}>
-              {parseYmd(d).getDate()}
-            </Text>
+            <Text style={[s.name, { color: selected ? "#FFFFFFB3" : c.muted }]}>{dayShort(d)}</Text>
+            <Text style={[s.num, { color: selected ? "#fff" : isToday ? c.accent : c.ink }]}>{parseYmd(d).getDate()}</Text>
             <View style={s.dots}>
               {tasksOn(tasks, d)
-                .slice(0, 4)
+                .slice(0, 3)
                 .map((t) => (
-                  <View key={t.id} style={[s.dot, { backgroundColor: t.color }]} />
+                  <View key={t.id} style={[s.dot, { backgroundColor: selected ? "#fff" : t.color }]} />
                 ))}
             </View>
           </Pressable>
@@ -36,10 +39,10 @@ export default function WeekStrip({ date, tasks, onPick }: { date: string; tasks
 }
 
 const s = StyleSheet.create({
-  row: { flexDirection: "row", gap: 4 },
-  day: { flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 14, gap: 2 },
-  name: { fontSize: 12 },
-  num: { fontSize: 17, fontWeight: "800" },
-  dots: { flexDirection: "row", gap: 2, height: 5 },
+  row: { flexDirection: "row", gap: 6 },
+  day: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 16, gap: 3, borderWidth: 1.5, borderColor: "transparent" },
+  name: { fontSize: 11, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.4 },
+  num: { fontSize: 18, fontWeight: "800" },
+  dots: { flexDirection: "row", gap: 3, height: 5 },
   dot: { width: 5, height: 5, borderRadius: 3 },
 });
